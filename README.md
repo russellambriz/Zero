@@ -33,7 +33,7 @@ Zero build dependencies. Serve `dist/` over HTTP for local development. For exam
 
 The included `.github/workflows/pages.yml` tests and publishes `dist/` when `main` changes. Enable **Settings → Pages → Source: GitHub Actions** in the target repository first. Pages availability for private repositories depends on the GitHub plan. The workflow requires permission to deploy Pages. Repository publishing is a separate step from the private hosted preview.
 
-All app assets use relative URLs, so both project paths and custom-domain roots work. Update the service-worker cache version whenever changing the app shell. Confirm any workflow action-version updates against GitHub's documentation before upgrading.
+All app assets use relative URLs, so both project paths and custom-domain roots work. The Pages workflow stamps the deploy commit into the service-worker cache name, so each publish is a new app shell. Update, in the sidebar or at the top of a notebook, installs that shell after notes are saved. Confirm any workflow action-version updates against GitHub's documentation before upgrading.
 
 The IndexedDB database retains its original internal identifier (`atelier-notes-v1`) so the rename does not erase existing notes.
 
