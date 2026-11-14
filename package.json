@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check dist/app.js && node --check dist/modules/ink.js && node --check dist/modules/model.js && node --check dist/modules/storage.js && node --check dist/modules/organize.js"
+    "check": "node --check dist/app.js && node --check dist/modules/ink.js && node --check dist/modules/inkEngine.js && node --check dist/modules/model.js && node --check dist/modules/storage.js && node --check dist/modules/organize.js"
   }
 }
