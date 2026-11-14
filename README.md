@@ -18,7 +18,7 @@ No analytics, accounts, remote fonts, external libraries, or subscription depend
 
 ## Apple Pencil / iPad
 
-Open the HTTPS app in Safari on a compatible iPad. Apple Pencil is handled through Pointer Events. Browser-supplied pressure changes pen width. With **Pencil only** enabled, touch drags pan the document without making ink; mouse input remains available. Choose Text to use the keyboard or iPad Scribble in the textarea. Use Safari's Share → Add to Home Screen for a standalone launch where supported.
+Open the HTTPS app in Safari on a compatible iPad. Apple Pencil is handled by `dist/modules/inkEngine.js` (`ApplePencilInkEngine`) through Pointer Events, with a OneEuro filter smoothing the stroke and coalesced + predicted samples for low-latency wet ink. Browser-supplied pressure changes pen width. With **Pencil only** enabled, a single finger is ignored, so a palm rest makes no marks; two fingers pan and pinch-zoom the page. With Pencil only off, a finger can draw (the only way to draw on a phone). Mouse input remains available. Choose Text to use the keyboard or iPad Scribble in the textarea. Use Safari's Share → Add to Home Screen for a standalone launch where supported.
 
 This is a web app, not a PencilKit native app. Pencil Pro squeeze, barrel roll, double-tap, hover previews, haptics, and OS-grade palm rejection are not implemented. Real Pencil latency, pressure, touch interaction, and Safari behavior still require device QA. Text occupies a fixed page area; overflow is rejected with a prompt to add another page. Search does not recognize handwriting. Ink history is session-local and clears on reload.
 
@@ -39,7 +39,7 @@ The IndexedDB database retains its original internal identifier (`atelier-notes-
 
 ## Integration into Synarc later
 
-`dist/modules/model.js` owns the versioned data schema, IDs, cloning, import validation, and merge behavior. `ink.js` owns pointer handling and rendering in a fixed 900×1200 document space. `storage.js` owns persistence and downloads. `app.js` is the interface and controller; `styles.css` is independent presentation.
+`dist/modules/model.js` owns the versioned data schema, IDs, cloning, import validation, and merge behavior. `inkEngine.js` owns Apple Pencil pointer handling, wet-ink rendering, and two-finger pan/zoom; `ink.js` owns the fixed 900×1200 document-space rendering used for page thumbnails and PNG export, plus whole-stroke eraser hit-testing. Strokes are stored in document space and converted to/from the engine's canvas CSS-pixel space by zoom in `inkEngine.js`. `storage.js` owns persistence and downloads. `app.js` is the interface and controller; `styles.css` is independent presentation.
 
 To integrate, preserve the `version: 1` export contract, import the model and ink modules, and substitute a Synarc persistence adapter. Convert data with `mergedState()` to avoid identifier collisions. Coordinate and pressure data are portable JSON, not opaque canvas snapshots. Keep the original backups during migration; do not silently overwrite a user's workspace.
 
@@ -62,5 +62,6 @@ This source was created for the owner of this project. No open-source license ha
 - P / H / E / T switches tools outside text fields and dialogs.
 - Completed ink is cached while drawing, avoiding replay of every previous stroke for every pointer update.
 - Import validation rejects unsafe identifiers and validates deleted data before merging.
+- Apple Pencil ink engine (`inkEngine.js`): two stacked devicePixelRatio-scaled canvases (committed ink below, live wet ink above), ruled paper kept as a CSS background so the eraser can only erase ink, OneEuro-filtered Pencil strokes with predicted-point tip tracking, and two-finger pan/pinch-zoom. Saved strokes, undo/redo, and exports are unchanged — strokes are still stored in the 900×1200 document space.
 
 12 automated tests pass. Browser QA covers delete/restore, restored text search, last-page resume controls, and ink undo/redo. Physical Apple Pencil testing remains necessary.
