@@ -63,5 +63,6 @@ This source was created for the owner of this project. No open-source license ha
 - Completed ink is cached while drawing, avoiding replay of every previous stroke for every pointer update.
 - Import validation rejects unsafe identifiers and validates deleted data before merging.
 - Apple Pencil ink engine (`inkEngine.js`): two stacked devicePixelRatio-scaled canvases (committed ink below, live wet ink above), ruled paper kept as a CSS background so the eraser can only erase ink, OneEuro-filtered Pencil strokes with predicted-point tip tracking, and two-finger pan/pinch-zoom. Saved strokes, undo/redo, and exports are unchanged — strokes are still stored in the 900×1200 document space.
+- Pencil pipeline audit: `inkEngine.js` is now the sole drawing pipeline — the legacy `InkSurface` pointer/touch handlers were deleted from `ink.js`, canvases are re-sized only on mount and real container resize (via `ResizeObserver`, replaying saved strokes, never on stroke commit), the canvas rect is read once per stroke instead of once per sample, and the document root blocks rubber-banding and callouts without blocking scrolling.
 
-12 automated tests pass. Browser QA covers delete/restore, restored text search, last-page resume controls, and ink undo/redo. Physical Apple Pencil testing remains necessary.
+25 automated tests pass. Browser QA covers delete/restore, restored text search, last-page resume controls, and ink undo/redo. Physical Apple Pencil testing remains necessary.
