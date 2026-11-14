@@ -1,1 +1,36 @@
-const CACHE='zero-shell-v5';const ASSETS=['./','./index.html','./styles.css','./app.js','./icon.svg','./manifest.webmanifest','./modules/model.js','./modules/storage.js','./modules/icons.js','./modules/ink.js','./modules/inkEngine.js','./modules/organize.js'];self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>(k.startsWith('atelier-shell-')||k.startsWith('zero-shell-'))&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==self.location.origin)return;e.respondWith(fetch(e.request).then(r=>{if(r.ok&&ASSETS.some(a=>new URL(a,self.registration.scope).pathname===u.pathname)){const clone=r.clone();caches.open(CACHE).then(c=>c.put(e.request,clone));}return r;}).catch(()=>caches.match(e.request).then(r=>r||(e.request.mode==='navigate'?caches.match('./index.html'):Response.error()))));});
+/*
+ * Zero's app shell.
+ * CACHE is stamped with the deploy commit by .github/workflows/pages.yml.
+ * A new worker waits until the page sends SKIP_WAITING (the Update button,
+ * after notes are saved). The previous cache keeps serving until then.
+ * sw.js itself is never answered from the cache, so the next deploy can be seen.
+ */
+const CACHE='zero-shell-dev';
+const ASSETS=['./','./index.html','./styles.css','./app.js','./icon.svg','./manifest.webmanifest','./modules/version.js','./modules/update.js','./modules/model.js','./modules/storage.js','./modules/icons.js','./modules/ink.js','./modules/inkEngine.js','./modules/organize.js'];
+self.addEventListener('install',event=>{
+  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(url=>new Request(url,{cache:'reload'})))));
+});
+self.addEventListener('activate',event=>{
+  event.waitUntil((async()=>{
+    const names=await caches.keys();
+    await Promise.all(names.filter(name=>(name.startsWith('zero-shell-')||name.startsWith('atelier-shell-'))&&name!==CACHE).map(name=>caches.delete(name)));
+    await self.clients.claim();
+  })());
+});
+self.addEventListener('message',event=>{
+  if(event.data&&event.data.type==='SKIP_WAITING')self.skipWaiting();
+  if(event.data&&event.data.type==='GET_VERSION'&&event.ports&&event.ports[0])event.ports[0].postMessage({cache:CACHE});
+});
+self.addEventListener('fetch',event=>{
+  const req=event.request;
+  if(req.method!=='GET')return;
+  const url=new URL(req.url);
+  if(url.origin!==self.location.origin)return;
+  if(url.pathname.endsWith('/sw.js'))return;
+  event.respondWith((async()=>{
+    const cache=await caches.open(CACHE);
+    const cached=await cache.match(req.mode==='navigate'?'./index.html':req,{ignoreSearch:true});
+    if(cached)return cached;
+    try{return await fetch(req);}catch{return req.mode==='navigate'?cache.match('./index.html'):Response.error();}
+  })());
+});
