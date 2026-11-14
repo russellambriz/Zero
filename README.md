@@ -33,7 +33,7 @@ Zero build dependencies. Serve `dist/` over HTTP for local development. For exam
 
 The included `.github/workflows/pages.yml` tests and publishes `dist/` when `main` changes. Enable **Settings → Pages → Source: GitHub Actions** in the target repository first. Pages availability for private repositories depends on the GitHub plan. The workflow requires permission to deploy Pages. Repository publishing is a separate step from the private hosted preview.
 
-All app assets use relative URLs, so both project paths and custom-domain roots work. Update the service-worker cache version whenever changing the app shell. Confirm any workflow action-version updates against GitHub's documentation before upgrading.
+All app assets use relative URLs, so both project paths and custom-domain roots work. The Pages workflow stamps the deploy commit into the service-worker cache name, so each publish is a new app shell. Update, in the sidebar or at the top of a notebook, installs that shell after notes are saved. Confirm any workflow action-version updates against GitHub's documentation before upgrading.
 
 The IndexedDB database retains its original internal identifier (`atelier-notes-v1`) so the rename does not erase existing notes.
 
@@ -65,4 +65,4 @@ This source was created for the owner of this project. No open-source license ha
 - Apple Pencil ink engine (`inkEngine.js`): two stacked devicePixelRatio-scaled canvases (committed ink below, live wet ink above), ruled paper kept as a CSS background so the eraser can only erase ink, OneEuro-filtered Pencil strokes with predicted-point tip tracking, and two-finger pan/pinch-zoom. Saved strokes, undo/redo, and exports are unchanged — strokes are still stored in the 900×1200 document space.
 - Pencil pipeline audit: `inkEngine.js` is now the sole drawing pipeline — the legacy `InkSurface` pointer/touch handlers were deleted from `ink.js`, canvases are re-sized only on mount and real container resize (via `ResizeObserver`, replaying saved strokes, never on stroke commit), the canvas rect is read once per stroke instead of once per sample, and the document root blocks rubber-banding and callouts without blocking scrolling.
 
-25 automated tests pass. Browser QA covers delete/restore, restored text search, last-page resume controls, and ink undo/redo. Physical Apple Pencil testing remains necessary.
+33 automated tests pass. Browser QA covers delete/restore, restored text search, last-page resume controls, and ink undo/redo. Physical Apple Pencil testing remains necessary.
