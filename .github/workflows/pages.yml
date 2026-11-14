@@ -22,6 +22,14 @@ jobs:
         with:
           node-version: '22'
       - run: npm run check && npm test
+      - name: Stamp this deploy into the app shell
+        run: |
+          sha="${GITHUB_SHA:0:7}"
+          sed -i "s/zero-shell-dev/zero-shell-${sha}/g" dist/sw.js dist/modules/version.js
+          sed -i "s/__BUILD__/${sha}/g" dist/modules/version.js
+          grep -q "zero-shell-${sha}" dist/sw.js
+          grep -q "zero-shell-${sha}" dist/modules/version.js
+          grep -q "'${sha}'" dist/modules/version.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
