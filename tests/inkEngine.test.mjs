@@ -50,6 +50,23 @@ function makeEngine(opts = {}) {
   return {engine, strokes, pans};
 }
 
+test('the canvas rect is read once per stroke, not once per sample', () => {
+  let rectReads = 0;
+  const canvas = fakeCanvas();
+  const orig = canvas.getBoundingClientRect.bind(canvas);
+  canvas.getBoundingClientRect = () => { rectReads++; return orig(); };
+  const {engine, strokes} = makeEngine({staticCanvas: fakeCanvas(), activeCanvas: canvas});
+  engine.handlePointerDown(pointer({clientX: 100, clientY: 100}));
+  assert.equal(rectReads, 1);
+  for (let i = 0; i < 5; i++) engine.handlePointerMove(pointer({clientX: 100 + i * 10, clientY: 100, buttons: 1}));
+  assert.equal(rectReads, 1);
+  engine.handlePointerUp(pointer({clientX: 150, clientY: 100, buttons: 0}));
+  assert.equal(strokes.length, 1);
+  // A new stroke re-reads the rect once.
+  engine.handlePointerDown(pointer({clientX: 200, clientY: 200}));
+  assert.equal(rectReads, 2);
+});
+
 test('stroke conversion round-trips through canvas space at any zoom', () => {
   const zero = {tool: 'pen', color: '#eee8db', width: 3, points: [[100, 200, 0.5], [300, 400, 1]]};
   for (const zoom of [0.5, 1, 2]) {

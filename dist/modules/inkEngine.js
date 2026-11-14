@@ -66,6 +66,12 @@ export class ApplePencilInkEngine {
     this.lastPinchMid = null;
     this.lastPinchDist = null;
     this.touchStrokeId = null;
+    // Cached canvas rect for the stroke in progress. toCanvasCoords()
+    // used to call getBoundingClientRect() on every coalesced sample,
+    // a layout read per point; the rect cannot move mid-stroke (no
+    // scroll or pinch happens while a pen stroke is down), so cache it
+    // once at stroke start and drop it on commit/cancel.
+    this.canvasRect = null;
 
     this.bindEvents();
   }
@@ -98,7 +104,7 @@ export class ApplePencilInkEngine {
   }
 
   toCanvasCoords(e) {
-    const rect = this.activeCanvas.getBoundingClientRect();
+    const rect = this.canvasRect || this.activeCanvas.getBoundingClientRect();
     return {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
@@ -109,6 +115,7 @@ export class ApplePencilInkEngine {
 
   startPenStroke(e) {
     this.activePenId = e.pointerId;
+    this.canvasRect = this.activeCanvas.getBoundingClientRect();
     try {
       this.activeCanvas.setPointerCapture(e.pointerId);
     } catch (_) {}
@@ -147,6 +154,7 @@ export class ApplePencilInkEngine {
           this.currentPoints = [];
           this.filterX = null;
           this.filterY = null;
+          this.canvasRect = null;
           this.clearActiveCanvas();
         }
         const [a, b] = [...this.activeTouches.values()];
@@ -285,6 +293,7 @@ export class ApplePencilInkEngine {
     this.currentPoints = [];
     this.filterX = null;
     this.filterY = null;
+    this.canvasRect = null;
   }
 
   clearActiveCanvas() {
