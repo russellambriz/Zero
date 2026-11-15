@@ -1,6 +1,6 @@
 export const id = () => crypto.randomUUID();
 export const colors = ['#c4aa79','#a3afb3','#a1ad96','#ba9691','#aaa1bc'];
-export function page(title='Untitled page', template='dots') { return {id:id(),title,text:'',template,strokes:[],createdAt:Date.now(),updatedAt:Date.now()}; }
+export function page(title='Untitled page', template='grid') { return {id:id(),title,text:'',template,strokes:[],createdAt:Date.now(),updatedAt:Date.now()}; }
 export function notebook(title='Untitled notebook', collection=null, color=colors[0]) {return {id:id(),title,collection,color,favorite:false,pages:[page('First page')],createdAt:Date.now(),updatedAt:Date.now()};}
 export function initialState() {const n=notebook('First thoughts');n.pages[0].title='A little room to begin';n.pages[0].text='Welcome to Zero.\n\nA quiet place for whatever is taking shape.\n\nWrite with your Pencil, make a sketch, or choose the text tool to type. Add a page whenever you need more room.\n\nYour notebooks stay in this browser. Export a backup to keep a copy you can take anywhere.';return {version:1,notebooks:[n],collections:[],settings:{pencilOnly:true,penColor:'#eee8db',penWidth:3},updatedAt:Date.now()};}
 export function validateState(s) {
