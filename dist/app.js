@@ -86,8 +86,10 @@ function handleStrokeComplete(stroke){
   }
   const s=engineStrokeToZero(stroke,zoom);
   if(!s){redrawStatic();maybeApplyPendingResize();return;}
+  // The engine already painted this stroke onto the static canvas on
+  // commit, so there is no need to repaint every stroke on the page.
   p.strokes.push(s);pushOp(p,{type:'add',stroke:s});
-  touchPage();scheduleThumb(p);updateUndo();redrawStatic();maybeApplyPendingResize();
+  touchPage();scheduleThumb(p);updateUndo();maybeApplyPendingResize();
 }
 // Two-finger gestures. A drag is a pan unless the fingers spread or pinch
 // by more than PINCH_START; only then does it become a zoom. Panning is
