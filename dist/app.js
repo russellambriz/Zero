@@ -89,10 +89,53 @@ function handleStrokeComplete(stroke){
   p.strokes.push(s);pushOp(p,{type:'add',stroke:s});
   touchPage();scheduleThumb(p);updateUndo();redrawStatic();maybeApplyPendingResize();
 }
-function handlePanZoom({dx,dy,scaleRatio}){
-  const host=$('.paper-scroll');if(!host)return;
-  host.scrollLeft-=dx;host.scrollTop-=dy;
-  if(scaleRatio&&Math.abs(scaleRatio-1)>0.001)applyZoom(zoom*scaleRatio);
+// Two-finger gestures. A drag is a pan unless the fingers spread or pinch
+// by more than PINCH_START; only then does it become a zoom. Panning is
+// applied once per frame, zoom is previewed with a CSS transform and the
+// expensive canvas resize happens once, on release. A flick keeps gliding.
+const PINCH_START=.1,FRICTION=.94,MIN_FLING=.25,STOP_SPEED=.02;
+let gesture=null,glide=0;
+function stopGlide(){if(glide)cancelAnimationFrame(glide);glide=0;}
+function handlePanStart({mid}){stopGlide();gesture={mode:'pan',scale:1,dx:0,dy:0,frame:0,samples:[],origin:null,left0:0,top0:0,mid};}
+function handlePanZoom({dx,dy,scaleRatio,mid}){
+  if(!gesture)handlePanStart({mid});
+  const g=gesture,now=performance.now();
+  g.scale*=scaleRatio||1;g.dx+=dx;g.dy+=dy;g.mid=mid;
+  g.samples.push({t:now,dx,dy});while(g.samples.length>1&&now-g.samples[0].t>90)g.samples.shift();
+  if(g.mode==='pan'&&Math.abs(Math.log(g.scale))>PINCH_START){
+    const host=$('.paper-scroll');if(host){host.scrollLeft-=g.dx;host.scrollTop-=g.dy;}g.dx=0;g.dy=0;
+    const r=$('.paper').getBoundingClientRect();
+    g.mode='zoom';g.origin={x:mid.x-r.left,y:mid.y-r.top};g.left0=r.left;g.top0=r.top;g.scale=1;
+    $('.paper').style.transformOrigin=`${g.origin.x}px ${g.origin.y}px`;
+  }
+  if(!g.frame)g.frame=requestAnimationFrame(flushGesture);
+}
+function zoomTarget(g){return Math.max(.25,Math.min(1.75,zoom*g.scale))/zoom;}
+function flushGesture(){
+  const g=gesture,host=$('.paper-scroll');if(!g)return;g.frame=0;if(!host)return;
+  if(g.mode==='zoom'){const paper=$('.paper');paper.style.transform=`scale(${zoomTarget(g)})`;paper.style.translate=`${g.dx}px ${g.dy}px`;}
+  else{host.scrollLeft-=g.dx;host.scrollTop-=g.dy;g.dx=0;g.dy=0;}
+}
+function handlePanEnd(){
+  const g=gesture;gesture=null;if(!g)return;
+  if(g.frame){cancelAnimationFrame(g.frame);g.frame=0;}
+  const host=$('.paper-scroll'),paper=$('.paper');if(!host||!paper)return;
+  if(g.mode==='zoom'){
+    const s=zoomTarget(g),screenX=g.left0+g.origin.x+g.dx,screenY=g.top0+g.origin.y+g.dy;
+    paper.style.transform='';paper.style.translate='';paper.style.transformOrigin='';
+    applyZoom(zoom*s);
+    const r=paper.getBoundingClientRect();
+    host.scrollLeft+=r.left+g.origin.x*s-screenX;host.scrollTop+=r.top+g.origin.y*s-screenY;
+    return;
+  }
+  host.scrollLeft-=g.dx;host.scrollTop-=g.dy;
+  const span=g.samples.length>1?g.samples[g.samples.length-1].t-g.samples[0].t:0;
+  if(span<=0||performance.now()-g.samples[g.samples.length-1].t>60)return;
+  let vx=g.samples.slice(1).reduce((a,q)=>a+q.dx,0)/span,vy=g.samples.slice(1).reduce((a,q)=>a+q.dy,0)/span;
+  if(Math.hypot(vx,vy)<MIN_FLING)return;
+  let last=performance.now();
+  const step=now=>{const dt=Math.min(32,now-last);last=now;host.scrollLeft-=vx*dt;host.scrollTop-=vy*dt;const f=Math.pow(FRICTION,dt/16);vx*=f;vy*=f;glide=Math.hypot(vx,vy)>STOP_SPEED?requestAnimationFrame(step):0;};
+  glide=requestAnimationFrame(step);
 }
 function setupCanvas(){
   const staticCanvas=$('#ink-static'),activeCanvas=$('#ink');
@@ -102,9 +145,13 @@ function setupCanvas(){
     activeCanvas,
     onStrokeComplete:handleStrokeComplete,
     onTwoFingerPanZoom:handlePanZoom,
+    onTwoFingerStart:handlePanStart,
+    onTwoFingerEnd:handlePanEnd,
+    onAnyPointerDown:stopGlide,
     allowMouse:true,
     allowTouchDraw:!state.settings.pencilOnly,
   });
+  stopGlide();gesture=null;
   syncEngine();
   redrawStatic();
   updateUndo();
