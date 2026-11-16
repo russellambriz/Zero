@@ -6,7 +6,7 @@
  * sw.js itself is never answered from the cache, so the next deploy can be seen.
  */
 const CACHE='zero-shell-dev';
-const ASSETS=['./','./index.html','./styles.css','./app.js','./icon.svg','./manifest.webmanifest','./modules/version.js','./modules/update.js','./modules/model.js','./modules/storage.js','./modules/icons.js','./modules/ink.js','./modules/inkEngine.js','./modules/organize.js'];
+const ASSETS=['./','./index.html','./styles.css','./app.js','./icon.svg','./apple-touch-icon.png','./icon-192.png','./icon-512.png','./manifest.webmanifest','./modules/version.js','./modules/update.js','./modules/model.js','./modules/storage.js','./modules/icons.js','./modules/ink.js','./modules/inkEngine.js','./modules/organize.js'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS.map(url=>new Request(url,{cache:'reload'})))));
 });
