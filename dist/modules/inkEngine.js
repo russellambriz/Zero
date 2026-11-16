@@ -136,6 +136,7 @@ export class ApplePencilInkEngine {
       t: raw.t,
     };
     this.currentPoints = [pt];
+    this.wetNext = 1;
     this.renderWetStroke(this.currentPoints);
   }
 
@@ -208,7 +209,7 @@ export class ApplePencilInkEngine {
         ? [...this.currentPoints, ...predicted.map((p) => this.toCanvasCoords(p))]
         : this.currentPoints;
 
-    this.renderWetStroke(previewPoints);
+    this.renderWetStroke(previewPoints, predicted.length > 0);
   }
 
   handlePointerMove(e) {
@@ -311,79 +312,97 @@ export class ApplePencilInkEngine {
     this.activeCtx.clearRect(0, 0, this.activeCanvas.width, this.activeCanvas.height);
   }
 
-  renderWetStroke(points) {
-    this.clearActiveCanvas();
-    this.drawStrokeToContext(this.activeCtx, {
-      tool: this.tool,
-      color: this.color,
-      baseWidth: this.baseWidth,
-      points,
-    });
+  // Live ink. Each spline segment is final as soon as the sample after it
+  // exists, so only new segments are added and the cost per Pencil sample
+  // stays constant however long the stroke gets. The wet line stops half a
+  // sample short of the tip; the commit draws the full stroke. Predicted
+  // points (where the browser offers them) are throwaway, so that path
+  // repaints the whole wet stroke instead.
+  renderWetStroke(points, predicted = false) {
+    const ctx = this.activeCtx;
+    if (predicted) {
+      this.clearActiveCanvas();
+      this.wetNext = 1;
+      this.drawStrokeToContext(ctx, { tool: this.tool, color: this.color, baseWidth: this.baseWidth, points });
+      return;
+    }
+    if (points.length < 3) {
+      this.clearActiveCanvas();
+      this.wetNext = 1;
+      this.drawStrokeToContext(ctx, { tool: this.tool, color: this.color, baseWidth: this.baseWidth, points });
+      return;
+    }
+    if (this.wetNext === 1) this.clearActiveCanvas(); // replace the starting dot
+    this.beginInk(ctx, this.tool, this.color);
+    for (let i = this.wetNext; i <= points.length - 2; i++) this.drawSegment(ctx, this.tool, this.baseWidth, points, i, false);
+    ctx.restore();
+    this.wetNext = points.length - 1;
   }
 
-  drawStrokeToContext(ctx, { tool, color, baseWidth, points }) {
-    if (!points || points.length === 0) return;
-
+  // Ink styling shared by full and incremental drawing.
+  beginInk(ctx, tool, color) {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-
     if (tool === 'eraser') {
       ctx.globalCompositeOperation = 'destination-out';
       ctx.strokeStyle = 'rgba(0,0,0,1)';
       ctx.fillStyle = 'rgba(0,0,0,1)';
-    } else if (tool === 'highlighter') {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.28;
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
     } else {
       ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1.0;
+      ctx.globalAlpha = tool === 'highlighter' ? 0.28 : 1.0;
       ctx.strokeStyle = color;
       ctx.fillStyle = color;
     }
+  }
 
-    const widthFor = (p) =>
-      tool === 'highlighter'
-        ? baseWidth * 5
-        : baseWidth * (0.45 + Math.pow(p, 0.75) * 0.95);
+  inkWidth(tool, baseWidth, pressure) {
+    return tool === 'highlighter' ? baseWidth * 5 : baseWidth * (0.45 + Math.pow(pressure, 0.75) * 0.95);
+  }
 
-    if (points.length === 1) {
-      const p0 = points[0];
+  // A tap, or a stroke that never really moved. WebKit draws nothing for a
+  // zero-length line even with round caps, so taps must be filled circles.
+  isDot(points) {
+    const p0 = points[0];
+    return points.every((p) => Math.abs(p.x - p0.x) < 0.75 && Math.abs(p.y - p0.y) < 0.75);
+  }
+
+  drawDot(ctx, tool, baseWidth, points) {
+    const p0 = points[0];
+    const pressure = Math.max(...points.map((p) => p.pressure));
+    ctx.beginPath();
+    ctx.arc(p0.x, p0.y, Math.max(0.6, this.inkWidth(tool, baseWidth, pressure) / 2), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Segment i of the midpoint spline: the curve through points[i] between
+  // the midpoints on either side. The first and last half-segments run to
+  // the true end points so a stroke reaches exactly where the Pencil was.
+  drawSegment(ctx, tool, baseWidth, points, i, toEnd = i === points.length - 2) {
+    const p1 = points[i];
+    const from = i === 1 ? points[0] : { x: (points[i - 1].x + p1.x) / 2, y: (points[i - 1].y + p1.y) / 2 };
+    const to = toEnd ? points[points.length - 1] : { x: (p1.x + points[i + 1].x) / 2, y: (p1.y + points[i + 1].y) / 2 };
+    ctx.beginPath();
+    ctx.lineWidth = this.inkWidth(tool, baseWidth, p1.pressure);
+    ctx.moveTo(from.x, from.y);
+    ctx.quadraticCurveTo(p1.x, p1.y, to.x, to.y);
+    ctx.stroke();
+  }
+
+  drawStrokeToContext(ctx, { tool, color, baseWidth, points }) {
+    if (!points || points.length === 0) return;
+    this.beginInk(ctx, tool, color);
+    if (points.length === 1 || this.isDot(points)) {
+      this.drawDot(ctx, tool, baseWidth, points);
+    } else if (points.length === 2) {
       ctx.beginPath();
-      ctx.arc(p0.x, p0.y, widthFor(p0.pressure) / 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    if (points.length === 2) {
-      ctx.beginPath();
-      ctx.lineWidth = widthFor(points[1].pressure);
+      ctx.lineWidth = this.inkWidth(tool, baseWidth, points[1].pressure);
       ctx.moveTo(points[0].x, points[0].y);
       ctx.lineTo(points[1].x, points[1].y);
       ctx.stroke();
-      ctx.restore();
-      return;
+    } else {
+      for (let i = 1; i < points.length - 1; i++) this.drawSegment(ctx, tool, baseWidth, points, i);
     }
-
-    // Quadratic midpoint spline for smooth continuous curves
-    for (let i = 1; i < points.length - 1; i++) {
-      const p0 = points[i - 1];
-      const p1 = points[i];
-      const p2 = points[i + 1];
-
-      const mid1 = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
-      const mid2 = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-
-      ctx.beginPath();
-      ctx.lineWidth = widthFor(p1.pressure);
-      ctx.moveTo(mid1.x, mid1.y);
-      ctx.quadraticCurveTo(p1.x, p1.y, mid2.x, mid2.y);
-      ctx.stroke();
-    }
-
     ctx.restore();
   }
 }
