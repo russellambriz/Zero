@@ -36,7 +36,7 @@ class OneEuroFilter {
 }
 
 export class ApplePencilInkEngine {
-  constructor({ staticCanvas, activeCanvas, onStrokeComplete, onTwoFingerPanZoom, allowMouse = false, allowTouchDraw = false }) {
+  constructor({ staticCanvas, activeCanvas, onStrokeComplete, onTwoFingerPanZoom, onTwoFingerStart, onTwoFingerEnd, onAnyPointerDown, allowMouse = false, allowTouchDraw = false }) {
     this.staticCanvas = staticCanvas;
     this.activeCanvas = activeCanvas;
     this.staticCtx = staticCanvas.getContext('2d');
@@ -44,6 +44,11 @@ export class ApplePencilInkEngine {
 
     this.onStrokeComplete = onStrokeComplete || (() => {});
     this.onTwoFingerPanZoom = onTwoFingerPanZoom || (() => {});
+    // Zero addition: gesture start/end so the app can batch scrolling per
+    // frame, preview pinch zoom cheaply, and add momentum on release.
+    this.onTwoFingerStart = onTwoFingerStart || (() => {});
+    this.onTwoFingerEnd = onTwoFingerEnd || (() => {});
+    this.onAnyPointerDown = onAnyPointerDown || (() => {});
     // Zero addition: the pasted engine is pen-only. Zero also lets a mouse
     // draw, and lets a finger draw when "Pencil only" is off (the only way
     // to draw on a phone), so mouse input is treated like a pen only when
@@ -135,6 +140,7 @@ export class ApplePencilInkEngine {
   }
 
   handlePointerDown(e) {
+    this.onAnyPointerDown(e);
     if (this.isPenLike(e)) {
       e.preventDefault();
       if (this.activePenId !== null) this.commitPenStroke();
@@ -160,6 +166,7 @@ export class ApplePencilInkEngine {
         const [a, b] = [...this.activeTouches.values()];
         this.lastPinchMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         this.lastPinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+        this.onTwoFingerStart({ mid: this.lastPinchMid });
       } else if (this.allowTouchDraw && this.activePenId === null) {
         e.preventDefault();
         this.touchStrokeId = e.pointerId;
@@ -252,8 +259,10 @@ export class ApplePencilInkEngine {
       }
       this.activeTouches.delete(e.pointerId);
       if (this.activeTouches.size < 2) {
+        const wasPinching = this.lastPinchMid !== null;
         this.lastPinchMid = null;
         this.lastPinchDist = null;
+        if (wasPinching) this.onTwoFingerEnd({ cancelled: false });
       }
     }
   }
@@ -269,8 +278,10 @@ export class ApplePencilInkEngine {
         return;
       }
       this.activeTouches.delete(e.pointerId);
+      const wasPinching = this.lastPinchMid !== null;
       this.lastPinchMid = null;
       this.lastPinchDist = null;
+      if (wasPinching) this.onTwoFingerEnd({ cancelled: true });
     }
   }
 
