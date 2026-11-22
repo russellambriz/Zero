@@ -30,5 +30,5 @@ export function cleanCover(n){if(n.cover===undefined)return n;n.cover=validCover
 /** Photos placed on a page, in page coordinates (900 x 1200). Like covers, a malformed photo is dropped rather than rejecting the backup. */
 export const PHOTO_MAX=60;
 const num=(v,lo,hi)=>Number.isFinite(v)&&v>=lo&&v<=hi;
-export function validPhoto(q){return !!q&&typeof q==='object'&&typeof q.id==='string'&&/^[-a-zA-Z0-9_]{1,128}$/.test(q.id)&&validImageSrc(q.src)&&num(q.w,8,2400)&&num(q.h,8,3200)&&num(q.x,-2400,900)&&num(q.y,-3200,1200);}
-export function cleanPhotos(p){if(!p||p.photos===undefined)return p;p.photos=Array.isArray(p.photos)?p.photos.filter(validPhoto).slice(0,PHOTO_MAX).map(q=>({id:q.id,src:q.src,x:q.x,y:q.y,w:q.w,h:q.h})):[];return p;}
+export function validPhoto(q){return !!q&&typeof q==='object'&&typeof q.id==='string'&&/^[-a-zA-Z0-9_]{1,128}$/.test(q.id)&&validImageSrc(q.src)&&num(q.w,8,2400)&&num(q.h,8,3200)&&num(q.x,-2400,900)&&num(q.y,-3200,1200)&&(q.front===undefined||typeof q.front==='boolean');}
+export function cleanPhotos(p){if(!p||p.photos===undefined)return p;p.photos=Array.isArray(p.photos)?p.photos.filter(validPhoto).slice(0,PHOTO_MAX).map(q=>({id:q.id,src:q.src,x:q.x,y:q.y,w:q.w,h:q.h,...(q.front?{front:true}:{})})):[];return p;}
