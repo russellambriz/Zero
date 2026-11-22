@@ -36,7 +36,7 @@ class OneEuroFilter {
 }
 
 export class ApplePencilInkEngine {
-  constructor({ staticCanvas, activeCanvas, onStrokeComplete, onTwoFingerPanZoom, onTwoFingerStart, onTwoFingerEnd, onAnyPointerDown, allowMouse = false, allowTouchDraw = false }) {
+  constructor({ staticCanvas, activeCanvas, onStrokeComplete, onTwoFingerPanZoom, onTwoFingerStart, onTwoFingerEnd, onAnyPointerDown, onPhotoDrag, allowMouse = false, allowTouchDraw = false }) {
     this.staticCanvas = staticCanvas;
     this.activeCanvas = activeCanvas;
     this.staticCtx = staticCanvas.getContext('2d');
@@ -49,6 +49,11 @@ export class ApplePencilInkEngine {
     this.onTwoFingerStart = onTwoFingerStart || (() => {});
     this.onTwoFingerEnd = onTwoFingerEnd || (() => {});
     this.onAnyPointerDown = onAnyPointerDown || (() => {});
+    // Zero addition: in the 'photo' tool one pointer (Pencil, finger or
+    // mouse) drags instead of drawing. The engine still owns the input; it
+    // just reports start / move / end / cancel in canvas pixels.
+    this.onPhotoDrag = onPhotoDrag || (() => {});
+    this.photoPointerId = null;
     // Zero addition: the pasted engine is pen-only. Zero also lets a mouse
     // draw, and lets a finger draw when "Pencil only" is off (the only way
     // to draw on a phone), so mouse input is treated like a pen only when
@@ -142,6 +147,15 @@ export class ApplePencilInkEngine {
 
   handlePointerDown(e) {
     this.onAnyPointerDown(e);
+    if (this.tool === 'photo' && this.photoPointerId === null && this.activeTouches.size === 0 &&
+        (this.isPenLike(e) || e.pointerType === 'touch')) {
+      e.preventDefault();
+      this.photoPointerId = e.pointerId;
+      try { this.activeCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+      if (e.pointerType === 'touch') this.activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.onPhotoDrag('start', this.toCanvasCoords(e));
+      return;
+    }
     if (this.isPenLike(e)) {
       e.preventDefault();
       if (this.activePenId !== null) this.commitPenStroke();
@@ -153,6 +167,11 @@ export class ApplePencilInkEngine {
     if (e.pointerType === 'touch') {
       this.activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.activeTouches.size === 2) {
+        // A second finger turns a photo drag into a pan as well.
+        if (this.photoPointerId !== null) {
+          this.photoPointerId = null;
+          this.onPhotoDrag('cancel', null);
+        }
         // A second finger means pan/zoom, not a stroke: drop any
         // single-finger touch stroke in progress without saving it.
         if (this.touchStrokeId !== null) {
@@ -213,6 +232,12 @@ export class ApplePencilInkEngine {
   }
 
   handlePointerMove(e) {
+    if (e.pointerId === this.photoPointerId) {
+      e.preventDefault();
+      if (e.pointerType === 'touch') this.activeTouches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.onPhotoDrag('move', this.toCanvasCoords(e));
+      return;
+    }
     if (this.isPenLike(e)) {
       e.preventDefault();
       this.movePenStroke(e);
@@ -248,6 +273,12 @@ export class ApplePencilInkEngine {
   }
 
   handlePointerUp(e) {
+    if (e.pointerId === this.photoPointerId) {
+      this.photoPointerId = null;
+      this.activeTouches.delete(e.pointerId);
+      this.onPhotoDrag('end', this.toCanvasCoords(e));
+      return;
+    }
     if (this.isPenLike(e) && e.pointerId === this.activePenId) {
       this.commitPenStroke();
       return;
@@ -269,6 +300,12 @@ export class ApplePencilInkEngine {
   }
 
   handlePointerCancel(e) {
+    if (e.pointerId === this.photoPointerId) {
+      this.photoPointerId = null;
+      this.activeTouches.delete(e.pointerId);
+      this.onPhotoDrag('cancel', null);
+      return;
+    }
     if (this.isPenLike(e) && e.pointerId === this.activePenId) {
       this.commitPenStroke();
     }
