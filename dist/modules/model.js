@@ -10,10 +10,10 @@ export function validateState(s) {
  for(const c of s.collections) {checkId(c.id);if(!str(c.title,120))throw Error('Invalid collection.');}
  const collections=new Set(s.collections.map(c=>c.id));
  for(const n of s.notebooks){checkId(n.id);if(!str(n.title,120)||!/^#[0-9a-f]{6}$/i.test(n.color)||!Array.isArray(n.pages)||!n.pages.length||n.pages.length>2000||(n.collection!==null&&!collections.has(n.collection)))throw Error('Invalid notebook.');
- for(const p of n.pages){checkId(p.id);if(!str(p.title,160)||!str(p.text,200000)||!['dots','grid','ruled','blank'].includes(p.template)||!Array.isArray(p.strokes))throw Error('Invalid page.');
+ for(const p of n.pages){checkId(p.id);if(!str(p.title,160)||!str(p.text,200000)||!['dots','grid','ruled','blank'].includes(p.template)||!Array.isArray(p.strokes)||(p.photos!==undefined&&(!Array.isArray(p.photos)||p.photos.length>PHOTO_MAX)))throw Error('Invalid page.');
  for(const t of p.strokes){if(!['pen','highlighter'].includes(t.tool)||!/^#[0-9a-f]{6}$/i.test(t.color)||!Number.isFinite(t.width)||t.width<0.1||t.width>50||!Array.isArray(t.points)||!t.points.length)throw Error('Invalid ink.');for(const q of t.points)if(!Array.isArray(q)||q.length!==3||!q.every(Number.isFinite)||q[0]<-100||q[0]>1000||q[1]<-100||q[1]>1300||q[2]<0||q[2]>1)throw Error('Invalid ink points.');}}
  }
- for(const n of s.notebooks)cleanCover(n);for(const e of s.trash||[])if(e&&e.kind==='notebook'&&e.data)cleanCover(e.data);
+ for(const n of s.notebooks){cleanCover(n);n.pages.forEach(cleanPhotos);}for(const e of s.trash||[]){if(!e||!e.data)continue;if(e.kind==='notebook'){cleanCover(e.data);(e.data.pages||[]).forEach(cleanPhotos);}else cleanPhotos(e.data);}
  const settings=s.settings||{};s.settings={pencilOnly:settings.pencilOnly!==false,penColor:/^#[0-9a-f]{6}$/i.test(settings.penColor||'')?settings.penColor:'#eee8db',penWidth:Number.isFinite(settings.penWidth)?Math.max(1,Math.min(10,settings.penWidth)):3};
  if(s.trash!==undefined){if(!Array.isArray(s.trash)||s.trash.length>2000)throw Error('Invalid recently deleted data.');for(const entry of s.trash){checkId(entry.id);if(!['page','notebook'].includes(entry.kind)||!Number.isFinite(entry.deletedAt)||!entry.data)throw Error('Invalid deleted item.');const copy=structuredClone(entry.data);let book;if(entry.kind==='notebook'){copy.collection=null;book=copy;}else{if(!str(entry.bookTitle,120)||typeof entry.bookId!=='string'||!/^[-a-zA-Z0-9_]{1,128}$/.test(entry.bookId)||!Number.isInteger(entry.index)||entry.index<0)throw Error('Invalid deleted page.');book={id:'trash-wrapper',title:'Deleted page',collection:null,color:'#c4aa79',pages:[copy]};}validateState({version:1,notebooks:[book],collections:[]});}}
  return s;
@@ -23,5 +23,12 @@ export function mergedState(current,incoming){validateState(incoming);const next
 
 /** A photo cover is an inline image (data URL) plus a focal point in percent. Anything else is dropped, never rejected, so a backup with an odd cover still imports. */
 export const COVER_MAX=8*1024*1024;
-export function validCover(c){return !!c&&typeof c==='object'&&typeof c.src==='string'&&c.src.length<=COVER_MAX&&/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(c.src)&&[c.x,c.y].every(v=>Number.isFinite(v)&&v>=0&&v<=100);}
+export function validImageSrc(src){return typeof src==='string'&&src.length<=COVER_MAX&&/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(src);}
+export function validCover(c){return !!c&&typeof c==='object'&&validImageSrc(c.src)&&[c.x,c.y].every(v=>Number.isFinite(v)&&v>=0&&v<=100);}
 export function cleanCover(n){if(n.cover===undefined)return n;n.cover=validCover(n.cover)?{src:n.cover.src,x:n.cover.x,y:n.cover.y}:null;return n;}
+
+/** Photos placed on a page, in page coordinates (900 x 1200). Like covers, a malformed photo is dropped rather than rejecting the backup. */
+export const PHOTO_MAX=60;
+const num=(v,lo,hi)=>Number.isFinite(v)&&v>=lo&&v<=hi;
+export function validPhoto(q){return !!q&&typeof q==='object'&&typeof q.id==='string'&&/^[-a-zA-Z0-9_]{1,128}$/.test(q.id)&&validImageSrc(q.src)&&num(q.w,8,2400)&&num(q.h,8,3200)&&num(q.x,-2400,900)&&num(q.y,-3200,1200);}
+export function cleanPhotos(p){if(!p||p.photos===undefined)return p;p.photos=Array.isArray(p.photos)?p.photos.filter(validPhoto).slice(0,PHOTO_MAX).map(q=>({id:q.id,src:q.src,x:q.x,y:q.y,w:q.w,h:q.h})):[];return p;}
