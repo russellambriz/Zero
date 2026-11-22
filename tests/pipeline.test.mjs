@@ -65,3 +65,6 @@ test('Pencil-only isolation and live tool updates need no re-initialization', ()
   const setTool = app.slice(app.indexOf('function setTool(t)'), app.indexOf('function applyZoom'));
   assert.match(setTool, /syncEngine\(\)/, 'choosing a tool syncs the engine');
 });
+test('pen-busy checks are false when no page (engine) is open', () => {
+  assert.doesNotMatch(app, /engine\?\.activePenId\s*!==\s*null/, 'undefined !== null is true: use penDown()');
+});
