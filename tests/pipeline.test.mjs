@@ -61,7 +61,7 @@ test('the document root kills the iPadOS touch delay without killing scroll', ()
 test('Pencil-only isolation and live tool updates need no re-initialization', () => {
   assert.match(engineSrc, /allowTouchDraw/, 'the engine gates single-finger drawing');
   assert.match(app, /engine\.allowTouchDraw=!e\.target\.checked/, 'the Pencil-only switch flips the engine live');
-  assert.match(app, /function syncEngine\(\)\{[^}]*engine\.tool=tool;engine\.color=inkColor;engine\.baseWidth=width\*zoom;/, 'tool, color and width update live');
+  assert.match(app, /function syncEngine\(\)\{[^}]*engine\.tool=tool;engine\.color=inkFor\(inkColor,lightPaper\(\)\);engine\.baseWidth=width\*zoom;/, 'tool, color (shown for the paper) and width update live');
   const setTool = app.slice(app.indexOf('function setTool(t)'), app.indexOf('function applyZoom'));
   assert.match(setTool, /syncEngine\(\)/, 'choosing a tool syncs the engine');
 });
