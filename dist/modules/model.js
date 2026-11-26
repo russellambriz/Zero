@@ -1,8 +1,8 @@
 export const id = () => crypto.randomUUID();
 export const colors = ['#c4aa79','#a3afb3','#a1ad96','#ba9691','#aaa1bc','#3b2418','#4a2c20','#6b3a2a','#8a4b2d','#954535','#a0673f','#c08552','#c19a6b','#d8b894','#ebd9c3'];
 export const colorNames = ['Gold','Silver','Sage','Rose','Lavender','Espresso','Dark chocolate','Mahogany','Cognac','Chestnut','Toffee','Caramel','Camel','Latte','Champagne'];
-/** Page colours a notebook can use. All dark enough that the light ink colours stay readable. */
-export const papers = [['#101113','Midnight'],['#2a1a12','Espresso'],['#3a241b','Dark chocolate'],['#4f2b20','Mahogany'],['#5e3420','Cognac']];
+/** Page colours a notebook can use. On the light ones (Champagne, Latte, Camel) ink is shown in its dark counterpart; see inkFor in ink.js. */
+export const papers = [['#101113','Midnight'],['#2a1a12','Espresso'],['#3a241b','Dark chocolate'],['#4f2b20','Mahogany'],['#5e3420','Cognac'],['#ebd9c3','Champagne'],['#d8b894','Latte'],['#c19a6b','Camel']];
 export const DEFAULT_PAPER = papers[0][0];
 /** Relative luminance 0..1 of a #rrggbb colour. */
 export function luminance(hex){const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:((v+.055)/1.055)**2.4);return .2126*c[0]+.7152*c[1]+.0722*c[2];}
