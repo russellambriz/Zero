@@ -1,5 +1,15 @@
 export const id = () => crypto.randomUUID();
-export const colors = ['#c4aa79','#a3afb3','#a1ad96','#ba9691','#aaa1bc'];
+export const colors = ['#c4aa79','#a3afb3','#a1ad96','#ba9691','#aaa1bc','#3b2418','#4a2c20','#6b3a2a','#8a4b2d','#954535','#a0673f','#c08552','#c19a6b','#d8b894','#ebd9c3'];
+export const colorNames = ['Gold','Silver','Sage','Rose','Lavender','Espresso','Dark chocolate','Mahogany','Cognac','Chestnut','Toffee','Caramel','Camel','Latte','Champagne'];
+/** Page colours a notebook can use. All dark enough that the light ink colours stay readable. */
+export const papers = [['#101113','Midnight'],['#2a1a12','Espresso'],['#3a241b','Dark chocolate'],['#4f2b20','Mahogany'],['#5e3420','Cognac']];
+export const DEFAULT_PAPER = papers[0][0];
+/** Relative luminance 0..1 of a #rrggbb colour. */
+export function luminance(hex){const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.03928?v/12.92:((v+.055)/1.055)**2.4);return .2126*c[0]+.7152*c[1]+.0722*c[2];}
+/** Very dark cover colours can't be drawn as thin accent lines on the dark UI: they fill the cover instead, with light lettering. */
+export const isDarkColor = hex => luminance(hex) < .06;
+/** The accent the interface uses inside a notebook: its cover colour, or champagne when that colour is too dark to see. */
+export const accentFor = n => isDarkColor(n.color) ? '#ebd9c3' : n.color;
 export function page(title='Untitled page', template='ruled') { return {id:id(),title,text:'',template,strokes:[],createdAt:Date.now(),updatedAt:Date.now()}; }
 export function notebook(title='Untitled notebook', collection=null, color=colors[0]) {return {id:id(),title,collection,color,favorite:false,pages:[page('First page')],createdAt:Date.now(),updatedAt:Date.now()};}
 export function initialState() {const n=notebook('First thoughts');n.pages[0].title='A little room to begin';n.pages[0].text='Welcome to Zero.\n\nA quiet place for whatever is taking shape.\n\nWrite with your Pencil, make a sketch, or choose the text tool to type. Add a page whenever you need more room.\n\nYour notebooks stay in this browser. Export a backup to keep a copy you can take anywhere.';return {version:1,notebooks:[n],collections:[],settings:{pencilOnly:true,penColor:'#eee8db',penWidth:3},updatedAt:Date.now()};}
@@ -13,7 +23,7 @@ export function validateState(s) {
  for(const p of n.pages){checkId(p.id);if(!str(p.title,160)||!str(p.text,200000)||!['dots','grid','ruled','blank'].includes(p.template)||!Array.isArray(p.strokes)||(p.photos!==undefined&&(!Array.isArray(p.photos)||p.photos.length>PHOTO_MAX)))throw Error('Invalid page.');
  for(const t of p.strokes){if(!['pen','highlighter'].includes(t.tool)||!/^#[0-9a-f]{6}$/i.test(t.color)||!Number.isFinite(t.width)||t.width<0.1||t.width>50||!Array.isArray(t.points)||!t.points.length)throw Error('Invalid ink.');for(const q of t.points)if(!Array.isArray(q)||q.length!==3||!q.every(Number.isFinite)||q[0]<-100||q[0]>1000||q[1]<-100||q[1]>1300||q[2]<0||q[2]>1)throw Error('Invalid ink points.');}}
  }
- for(const n of s.notebooks){cleanCover(n);n.pages.forEach(cleanPhotos);}for(const e of s.trash||[]){if(!e||!e.data)continue;if(e.kind==='notebook'){cleanCover(e.data);(e.data.pages||[]).forEach(cleanPhotos);}else cleanPhotos(e.data);}
+ for(const n of s.notebooks){cleanCover(n);if(n.paper!==undefined&&!papers.some(([c])=>c===n.paper))delete n.paper;n.pages.forEach(cleanPhotos);}for(const e of s.trash||[]){if(!e||!e.data)continue;if(e.kind==='notebook'){cleanCover(e.data);(e.data.pages||[]).forEach(cleanPhotos);}else cleanPhotos(e.data);}
  const settings=s.settings||{};s.settings={pencilOnly:settings.pencilOnly!==false,penColor:/^#[0-9a-f]{6}$/i.test(settings.penColor||'')?settings.penColor:'#eee8db',penWidth:Number.isFinite(settings.penWidth)?Math.max(1,Math.min(10,settings.penWidth)):3};
  if(s.trash!==undefined){if(!Array.isArray(s.trash)||s.trash.length>2000)throw Error('Invalid recently deleted data.');for(const entry of s.trash){checkId(entry.id);if(!['page','notebook'].includes(entry.kind)||!Number.isFinite(entry.deletedAt)||!entry.data)throw Error('Invalid deleted item.');const copy=structuredClone(entry.data);let book;if(entry.kind==='notebook'){copy.collection=null;book=copy;}else{if(!str(entry.bookTitle,120)||typeof entry.bookId!=='string'||!/^[-a-zA-Z0-9_]{1,128}$/.test(entry.bookId)||!Number.isInteger(entry.index)||entry.index<0)throw Error('Invalid deleted page.');book={id:'trash-wrapper',title:'Deleted page',collection:null,color:'#c4aa79',pages:[copy]};}validateState({version:1,notebooks:[book],collections:[]});}}
  return s;
